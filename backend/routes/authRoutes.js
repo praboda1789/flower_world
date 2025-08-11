@@ -1,8 +1,12 @@
-// authRoutes.js//
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { login } = require('../controllers/authController');
 
-router.post('/login', login); 
+const { register, login } = require("../controllers/authController");
+
+// Register (only for resident/family customer)
+router.post("/register", register);
+
+// Login (admin or resident/family)
+router.post("/login", login);
 
 module.exports = router;

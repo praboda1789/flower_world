@@ -1,49 +1,71 @@
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const User = require("../models/User");
+const jwt = require("jsonwebtoken");
 
-
-// Login user
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
+// Register customer (resident/family) only
+exports.register = async (req, res) => {
   try {
-    const user = await User.findOne({ email });
+    const { name, email, password } = req.body;
 
-    if (!user) {
-      console.log("User not found");
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
+    // Check if user exists
+    let user = await User.findOne({ email });
+    if (user) return res.status(400).json({ msg: "User already exists" });
 
-    console.log(" Found User:", user);
-
-    // Compare entered password with hashed password
-    const isMatch = await bcrypt.compare(password, user.password);
-    console.log("Entered Password:", password);
-    console.log("Hashed Password from DB:", user.password);
-    console.log("Password Match Result:", isMatch);
-
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign(
-      { id: user._id, userType: user.userType },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-      },
+    // Create new user with userType fixed as resident/family
+    user = new User({
+      name,
+      email,
+      password,          // store password as plain text (not recommended but per your request)
+      userType: "customer",
     });
+
+    await user.save();
+
+    // Create JWT payload
+    const payload = {
+      id: user._id,
+      userType: user.userType,
+      name: user.name,
+      email: user.email,
+    };
+
+    // Sign JWT token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    res.status(201).json({ token, user: payload });
   } catch (error) {
-    console.error("🔥 Server Error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error(error.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// Login for admin and customer (resident/family)
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ msg: "Invalid credentials" });
+
+    // Compare password directly (no hashing)
+    if (password !== user.password) {
+      return res.status(400).json({ msg: "Invalid credentials" });
+    }
+
+    // Create JWT payload
+    const payload = {
+      id: user._id,
+      userType: user.userType,
+      name: user.name,
+      email: user.email,
+    };
+
+    // Sign JWT token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    res.json({ token, user: payload });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).send("Server error");
   }
 };
