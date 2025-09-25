@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import flowerLogo from "../assets/flower.jpg";
 import { FaShoppingCart } from "react-icons/fa";
-
+import { FaBoxOpen } from "react-icons/fa";
 const Navbar = () => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
@@ -33,16 +33,38 @@ const Navbar = () => {
         </span>
       </Link>
 
-      <div className="flex gap-5 items-center">
+      {/* Center Nav (Links for all users) */}
+      <div className="hidden md:flex gap-8 text-gray-700 font-medium">
+        <Link to="/" className="hover:text-green-700 transition">Home</Link>
+        <Link to="/shop" className="hover:text-green-700 transition">Shop</Link>
+        <Link to="/about" className="hover:text-green-700 transition">About</Link>
+        <Link to="/contact" className="hover:text-green-700 transition">Contact</Link>
+      </div>
+
+      {/* Right Side Actions */}
+      <div className="flex gap-5 items-center text-gray-600">
         {user && (
-          <Link
-            to="/cart"
-            className="text-pink-500 hover:text-pink-700"
-            aria-label="View Cart"
-            style={{ fontSize: "1.5rem" }}
-          >
-            <FaShoppingCart />
-          </Link>
+          <>
+            {/* 🛒 Cart */}
+            <Link
+              to="/cart"
+              className="hover:text-green-700 transition"
+              aria-label="View Cart"
+              style={{ fontSize: "1.4rem" }}
+            >
+              <FaShoppingCart />
+            </Link>
+
+            {/* 📦 Orders */}
+            <Link
+              to="/orders/:id"
+              className="hover:text-green-700 transition"
+              aria-label="My Orders"
+              style={{ fontSize: "1.4rem" }}
+            >
+              <FaBoxOpen />
+            </Link>
+          </>
         )}
 
         {user ? (

@@ -15,9 +15,9 @@ async function getOrCreateCart(userId) {
 exports.addItemToCart = async (req, res) => {
   try {
     const userId = req.user._id; // from auth middleware
-    const { flowerId, quantity } = req.body;
+    const { flowerId, quantity, size } = req.body;
 
-    if (!flowerId || !quantity || quantity < 1) {
+    if (!flowerId || !quantity || quantity < 1|| !size) {
       return res.status(400).json({ message: 'Invalid flowerId or quantity' });
     }
 
@@ -27,21 +27,29 @@ exports.addItemToCart = async (req, res) => {
       return res.status(404).json({ message: 'Flower not found' });
     }
 
+    // Pick correct price based on size
+    let price;
+    switch (size) {
+      case 'small': price = flower.sellingPriceSmall; break;
+      case 'medium': price = flower.sellingPriceMedium; break;
+      case 'large': price = flower.sellingPriceLarge; break;
+      default: return res.status(400).json({ message: 'Invalid size' });
+    }
+
+
     const cart = await getOrCreateCart(userId);
 
     // Check if item exists in cart
-    const existingItem = cart.items.find(item => item.flowerId.equals(flowerId));
+    const existingItem = cart.items.find(
+      item => item.flowerId.equals(flowerId) && item.size === size
+    );
 
     if (existingItem) {
-      existingItem.quantity += quantity; // Increase quantity
+      existingItem.quantity += quantity;
     } else {
-      cart.items.push({
-        flowerId,
-        name: flower.name,
-        price: flower.buyPrice,
-        quantity
-      });
+      cart.items.push({ flowerId, name: flower.name, size, price, quantity });
     }
+
 
     await cart.save();
     res.status(200).json(cart);
@@ -51,66 +59,76 @@ exports.addItemToCart = async (req, res) => {
   }
 };
 
+
 // Get all items in cart
 exports.getCartItems = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Find the cart for the user
     const cart = await Cart.findOne({ userId }).lean();
-    if (!cart) {
-      return res.status(200).json({ items: [] }); // empty cart
-    }
+    if (!cart) return res.status(200).json({ items: [] }); // empty cart
 
-    // Get flower IDs in the cart
     const flowerIds = cart.items.map(item => item.flowerId);
 
-    // Fetch flower info for all flowers in the cart
     const flowers = await Flower.find({ _id: { $in: flowerIds } })
-      .select('image') // select only image (you can add name/price if needed)
+      .select('image sellingPriceSmall sellingPriceMedium sellingPriceLarge')
       .lean();
 
-    // Create a map flowerId => image
-    const flowerImageMap = {};
+    const flowerMap = {};
     flowers.forEach(flower => {
-      flowerImageMap[flower._id.toString()] = flower.image;
+      flowerMap[flower._id.toString()] = flower;
     });
 
-    // Add image to each cart item by matching flowerId
-    const itemsWithImages = cart.items.map(item => ({
-    ...item,
-    image: flowerImageMap[item.flowerId.toString()]
-        ? `http://localhost:5000/uploads/${flowerImageMap[item.flowerId.toString()]}`
-        : null
-    }));
+    const itemsWithPrices = cart.items.map(item => {
+      const flower = flowerMap[item.flowerId.toString()];
+      return {
+        ...item,
+        image: flower ? `http://localhost:5000/uploads/${flower.image}` : null,
+        prices: flower
+          ? {
+              small: flower.sellingPriceSmall,
+              medium: flower.sellingPriceMedium,
+              large: flower.sellingPriceLarge,
+            }
+          : { small: item.price, medium: item.price, large: item.price }, // fallback
+        price: item.price, // current price for the selected size
+      };
+    });
 
-    // Return cart with items including image field
-    res.status(200).json({ ...cart, items: itemsWithImages });
-
+    res.status(200).json({ ...cart, items: itemsWithPrices });
   } catch (err) {
     console.error("Get cart error:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
+
+
 // Update item quantity
 exports.updateCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { flowerId } = req.params;
-    const { quantity } = req.body;
-
-    if (!quantity || quantity < 1) {
-      return res.status(400).json({ message: 'Invalid quantity' });
-    }
+    const { quantity, size } = req.body;
 
     const cart = await Cart.findOne({ userId });
     if (!cart) return res.status(404).json({ message: 'Cart not found' });
 
     const item = cart.items.find(item => item.flowerId.equals(flowerId));
-    if (!item) return res.status(404).json({ message: 'Item not found in cart' });
+    if (!item) return res.status(404).json({ message: 'Item not found' });
 
-    item.quantity = quantity;
+    if (quantity && quantity > 0) item.quantity = quantity;
+
+    if (size) {
+      const flower = await Flower.findById(flowerId);
+      if (!flower) return res.status(404).json({ message: 'Flower not found' });
+
+      item.size = size;
+      item.price = size === 'small' ? flower.sellingPriceSmall :
+                   size === 'medium' ? flower.sellingPriceMedium :
+                   flower.sellingPriceLarge;
+    }
+
     await cart.save();
     res.status(200).json(cart);
   } catch (err) {
@@ -118,6 +136,7 @@ exports.updateCartItem = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // Remove item from cart
 exports.removeCartItem = async (req, res) => {

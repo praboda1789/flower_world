@@ -7,17 +7,21 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch users
-    fetch("http://localhost:5000/api/users")
-      .then((res) => res.json())
-      .then((data) => setUsers(data))
-      .catch((err) => console.error(err));
+    // Dummy data for users
+    const dummyUsers = [
+      { _id: "1", name: "John Doe", email: "john@example.com" },
+      { _id: "2", name: "Jane Smith", email: "jane@example.com" },
+      { _id: "3", name: "Alice Johnson", email: "alice@example.com" },
+    ];
+    setUsers(dummyUsers);
 
-    // Fetch flowers
-    fetch("http://localhost:5000/api/flowers")
-      .then((res) => res.json())
-      .then((data) => setFlowers(data))
-      .catch((err) => console.error(err));
+    // Dummy data for flowers
+    const dummyFlowers = [
+      { _id: "1", name: "Rose", price: 10 },
+      { _id: "2", name: "Tulip", price: 15 },
+      { _id: "3", name: "Sunflower", price: 8 },
+    ];
+    setFlowers(dummyFlowers);
   }, []);
 
   return (
