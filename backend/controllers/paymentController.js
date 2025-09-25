@@ -1,6 +1,7 @@
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
 const mongoose = require('mongoose');
+const Delivery = require('../models/Delivery');
 
 exports.createPayment = async (req, res) => {
   try {
@@ -30,7 +31,24 @@ exports.createPayment = async (req, res) => {
       cardDetails: cardDetails || {}
     });
 
-    res.status(201).json({ payment });
+    // Automatically create delivery after payment
+    const delivery = await Delivery.create({
+      orderId,
+      userId,
+      status: 'pending',
+      estimatedDeliveryDate: order.deliveryDate || null,
+      actualDeliveryDate: null,
+      deliveryPerson: '',
+      address: {
+        addressLine: order.addressLine,
+        city: order.city,
+        district: order.district || '',
+        postalCode: order.postalCode || '',
+        country: order.country
+      }
+    });
+
+    res.status(201).json({ payment, delivery });
   } catch (err) {
     console.error('Create payment error:', {
       message: err.message,

@@ -1,43 +1,38 @@
 // controllers/deliveryController.js
 const Delivery = require('../models/Delivery');
 const Order = require('../models/Order');
+const mongoose = require('mongoose');
 
+// Create a new delivery (automatically called after payment)
 exports.createDelivery = async (req, res) => {
   try {
+    const { orderId } = req.body;
     const userId = req.user._id;
-    const { orderId, estimatedDeliveryDate } = req.body;
 
-    // Validate order exists and belongs to user
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid orderId' });
+    }
+
     const order = await Order.findById(orderId);
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.userId.toString() !== userId.toString()) {
+    if (!order || order.userId.toString() !== userId.toString()) {
       return res.status(403).json({ message: 'Forbidden' });
     }
-    if (order.status !== 'pending') {
-      return res.status(400).json({ message: 'Order not eligible for delivery creation' });
-    }
 
-    // Check if delivery already exists
-    const existingDelivery = await Delivery.findOne({ orderId });
-    if (existingDelivery) return res.status(400).json({ message: 'Delivery already created for this order' });
-
-    // Create delivery with default pending status
     const delivery = await Delivery.create({
       orderId,
-      estimatedDeliveryDate: estimatedDeliveryDate || order.deliveryDate,
-      deliveryAddress: {
+      userId,
+      status: 'pending',
+      estimatedDeliveryDate: order.deliveryDate || null, // From order
+      actualDeliveryDate: null,
+      deliveryPerson: '', // Default empty
+      address: {
         addressLine: order.addressLine,
         city: order.city,
         district: order.district,
         postalCode: order.postalCode,
         country: order.country
-      },
-      deliveryStatus: 'pending',
-      courierService: 'Local Courier' // Default, admin can update later
+      }
     });
-
-    // Update order status to 'confirmed' using existing update logic
-    await Order.findByIdAndUpdate(orderId, { status: 'confirmed' });
 
     res.status(201).json({ delivery });
   } catch (err) {
@@ -46,69 +41,65 @@ exports.createDelivery = async (req, res) => {
   }
 };
 
-exports.getDeliveryById = async (req, res) => {
+// Get all deliveries (admin only)
+exports.getAllDeliveries = async (req, res) => {
   try {
-    const delivery = await Delivery.findById(req.params.id).populate('orderId', 'userId status');
-    if (!delivery) return res.status(404).json({ message: 'Delivery not found' });
+    
 
-    // Permission: Admin or order owner
-    if (!req.user.isAdmin && delivery.orderId.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
+    const { status, date } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (date) filter.createdAt = { $gte: new Date(date) }; // Example filter by date
 
-    res.status(200).json({ delivery });
+    const deliveries = await Delivery.find(filter)
+      .populate('orderId', 'total status')
+      .populate('userId', 'name email')
+      .lean();
+
+    res.status(200).json({ deliveries });
   } catch (err) {
-    console.error('Get delivery error:', err);
+    console.error('Get all deliveries error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-exports.getDeliveryByOrder = async (req, res) => {
+// Get user's deliveries (customer view)
+exports.getMyDeliveries = async (req, res) => {
   try {
-    const { orderId } = req.params;
-    const delivery = await Delivery.findOne({ orderId }).populate('orderId', 'userId status');
-    if (!delivery) return res.status(404).json({ message: 'No delivery found for this order' });
+    const userId = req.user._id;
+    const deliveries = await Delivery.find({ userId })
+      .populate('orderId', 'total status')
+      .lean();
 
-    // Permission: Admin or order owner
-    if (!req.user.isAdmin && delivery.orderId.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    res.status(200).json({ delivery });
+    res.status(200).json({ deliveries });
   } catch (err) {
-    console.error('Get delivery by order error:', err);
+    console.error('Get my deliveries error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
+// Update delivery
 exports.updateDelivery = async (req, res) => {
   try {
-    if (!req.user.isAdmin) return res.status(403).json({ message: 'Forbidden' });
-    const delivery = await Delivery.findById(req.params.id);
+    
+
+    const { id } = req.params;
+    const { status, deliveryPerson, estimatedDeliveryDate, actualDeliveryDate, address } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid delivery ID' });
+    }
+
+    const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ message: 'Delivery not found' });
 
-    const { trackingNumber, courierService, deliveryStatus, estimatedDeliveryDate, actualDeliveryDate, deliveryNotes } = req.body;
-    if (trackingNumber) delivery.trackingNumber = trackingNumber;
-    if (courierService) delivery.courierService = courierService;
-    if (deliveryStatus) delivery.deliveryStatus = deliveryStatus;
+    if (status) delivery.status = status;
+    if (deliveryPerson) delivery.deliveryPerson = deliveryPerson;
     if (estimatedDeliveryDate) delivery.estimatedDeliveryDate = estimatedDeliveryDate;
     if (actualDeliveryDate) delivery.actualDeliveryDate = actualDeliveryDate;
-    if (deliveryNotes) delivery.deliveryNotes = deliveryNotes;
+    if (address) delivery.address = { ...delivery.address, ...address };
 
     await delivery.save();
-
-    // Sync order status without modifying Order schema
-    let orderUpdate = {};
-    if (delivery.deliveryStatus === 'dispatched' || delivery.deliveryStatus === 'out for delivery') {
-      orderUpdate.status = 'dispatched';
-    } else if (delivery.deliveryStatus === 'delivered') {
-      orderUpdate.status = 'delivered';
-    } else if (delivery.deliveryStatus === 'failed' || delivery.deliveryStatus === 'returned') {
-      orderUpdate.status = 'cancelled';
-    }
-    if (Object.keys(orderUpdate).length > 0) {
-      await Order.findByIdAndUpdate(delivery.orderId, orderUpdate);
-    }
 
     res.status(200).json({ delivery });
   } catch (err) {
@@ -117,30 +108,29 @@ exports.updateDelivery = async (req, res) => {
   }
 };
 
+// Delete delivery
 exports.deleteDelivery = async (req, res) => {
   try {
-    if (!req.user.isAdmin) return res.status(403).json({ message: 'Forbidden' });
-    const delivery = await Delivery.findById(req.params.id);
+    
+
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid delivery ID' });
+    }
+
+    const delivery = await Delivery.findById(id);
     if (!delivery) return res.status(404).json({ message: 'Delivery not found' });
 
+    if (!['cancelled', 'invalid'].includes(delivery.status)) {
+      return res.status(400).json({ message: 'Can only delete cancelled or invalid deliveries' });
+    }
+
     await delivery.remove();
-    // Optional: Reset order status to 'confirmed'
-    await Order.findByIdAndUpdate(delivery.orderId, { status: 'confirmed' });
 
     res.status(200).json({ message: 'Delivery deleted' });
   } catch (err) {
     console.error('Delete delivery error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-exports.getAllDeliveriesAdmin = async (req, res) => {
-  try {
-    if (!req.user.isAdmin) return res.status(403).json({ message: 'Forbidden' });
-    const deliveries = await Delivery.find().sort({ createdAt: -1 }).populate('orderId', 'total status userId');
-    res.status(200).json({ deliveries });
-  } catch (err) {
-    console.error('Get all deliveries error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

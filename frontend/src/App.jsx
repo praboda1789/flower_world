@@ -12,7 +12,7 @@ import CartPage from "./pages/CartPage";
 import AdminPanel from "./components/AdminPanel.jsx"; 
 import Dashboard from "./pages/AdminDashboard.jsx";
 import AdminDeliveryManagement from "./pages/AdminDeliveryManagement.jsx";
-// import MyDeliveries from "./pages/MyDeliveries.jsx";
+import MyDeliveriesPage from "./pages/MyDeliveries.jsx";
 import AdminOrdersPage from "./pages/AdminOrdersPage.jsx";
 import MyOrdersPage from "./pages/MyOrders.jsx";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
@@ -32,7 +32,8 @@ function App() {
         <Route path="/edit/:id" element={<EditFlower />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        {/* <Route path="/my-deliveries" element={<MyDeliveries />} /> */}
+        <Route path="/deliveries" element={<MyDeliveriesPage />} />
+        <Route path="/deliveries/:orderId" element={<MyDeliveriesPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders/:id" element={<MyOrdersPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
@@ -55,11 +56,11 @@ function App() {
 // This component controls when Navbar shows
 function ConditionalNavbar() {
   const location = useLocation();
-  // Hide Navbar on login and register pages
-  const noNavbarPaths = ["/admin","/flower"];
+  // Hide Navbar on login, register, and all admin routes
+  const noNavbarPaths = ["/login", "/register", "/admin"];
 
-  if (noNavbarPaths.includes(location.pathname)) {
-    return null; // Don't render Navbar here
+  if (noNavbarPaths.some(path => location.pathname === path || location.pathname.startsWith(path))) {
+    return null; // Don't render Navbar on these paths
   }
 
   return <Navbar />;

@@ -34,12 +34,12 @@ const Navbar = () => {
       </Link>
 
       {/* Center Nav (Links for all users) */}
-      <div className="hidden md:flex gap-8 text-gray-700 font-medium">
+      {/* <div className="hidden md:flex gap-8 text-gray-700 font-medium">
         <Link to="/" className="hover:text-green-700 transition">Home</Link>
         <Link to="/shop" className="hover:text-green-700 transition">Shop</Link>
         <Link to="/about" className="hover:text-green-700 transition">About</Link>
         <Link to="/contact" className="hover:text-green-700 transition">Contact</Link>
-      </div>
+      </div> */}
 
       {/* Right Side Actions */}
       <div className="flex gap-5 items-center text-gray-600">

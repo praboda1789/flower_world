@@ -1,28 +1,19 @@
-// models/delivery.js
 const mongoose = require('mongoose');
 
 const deliverySchema = new mongoose.Schema({
   orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
-  trackingNumber: { type: String, unique: true, sparse: true }, // Sparse for optional tracking
-  courierService: { type: String, enum: ['Local Courier', 'DHL', 'UPS', 'FedEx', 'Other'], default: 'Local Courier' },
-  deliveryStatus: { 
-    type: String, 
-    enum: ['pending', 'processing', 'dispatched', 'out for delivery', 'delivered', 'failed', 'returned'], 
-    default: 'pending' 
-  },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, enum: ['pending', 'in-progress', 'delivered', 'cancelled'], default: 'pending' },
   estimatedDeliveryDate: { type: Date },
   actualDeliveryDate: { type: Date },
-  deliveryNotes: { type: String },
-  deliveryAddress: {
+  deliveryPerson: { type: String },
+  address: {
     addressLine: { type: String, required: true },
     city: { type: String, required: true },
     district: { type: String },
     postalCode: { type: String },
-    country: { type: String, required: true, default: 'Sri Lanka' }
+    country: { type: String, default: 'Sri Lanka' }
   }
 }, { timestamps: true });
-
-deliverySchema.index({ orderId: 1 });
-deliverySchema.index({ trackingNumber: 1 });
 
 module.exports = mongoose.model('Delivery', deliverySchema);

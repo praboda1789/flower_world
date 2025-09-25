@@ -1,57 +1,83 @@
 // services/deliveryService.js
-const API_BASE = "http://localhost:5000/api/deliveries";
+import axios from "axios";
 
-const getAuthHeaders = () => ({
-  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  "Content-Type": "application/json",
-});
+const API_URL =
+  (typeof process !== "undefined" && process.env.REACT_APP_API_URL
+    ? process.env.REACT_APP_API_URL
+    : "http://localhost:5000") + "/api/deliveries";
 
-// Create a new delivery
-export async function createDelivery(payload) {
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to create delivery");
-  return res.json();
-}
+// Create new delivery (if manual, but auto in backend)
+export const createDelivery = async (payload) => {
+  try {
+    const response = await axios.post(API_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating delivery:", error);
+    throw error;
+  }
+};
 
-// Get delivery by orderId
-export async function getDeliveryByOrder(orderId) {
-  const res = await fetch(`${API_BASE}/order/${orderId}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to fetch delivery by order");
-  return res.json();
-}
+// Get all deliveries (admin)
+export const getAllDeliveries = async (query = {}) => {
+  try {
+    const response = await axios.get(`${API_URL}/all`, {
+      params: query,
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching all deliveries:", error);
+    throw error;
+  }
+};
 
-// Update delivery by deliveryId
-export async function updateDelivery(deliveryId, payload) {
-  const res = await fetch(`${API_BASE}/${deliveryId}`, {
-    method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to update delivery");
-  return res.json();
-}
+// Get my deliveries (customer)
+export const getMyDeliveries = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/my`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching my deliveries:", error);
+    throw error;
+  }
+};
 
-// Delete delivery by deliveryId
-export async function deleteDelivery(deliveryId) {
-  const res = await fetch(`${API_BASE}/${deliveryId}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to delete delivery");
-  return res.json();
-}
+// Update delivery (admin)
+export const updateDelivery = async (id, payload) => {
+  try {
+    const response = await axios.put(`${API_URL}/${id}`, payload, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating delivery:", error);
+    throw error;
+  }
+};
 
-// Admin: Get all deliveries
-export async function getAllDeliveriesAdmin() {
-  const res = await fetch(`${API_BASE}/admin/all`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to fetch deliveries (admin)");
-  return res.json();
-}
+// Delete delivery (admin)
+export const deleteDelivery = async (id) => {
+  try {
+    const response = await axios.delete(`${API_URL}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting delivery:", error);
+    throw error;
+  }
+};
