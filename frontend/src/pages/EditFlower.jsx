@@ -11,9 +11,9 @@ const EditFlower = () => {
     flowerCount: "",
     image: "",
     buyPrice: "",
-    description: "",
   });
 
+  const [imageFile, setImageFile] = useState(null); // for file upload
   const [prices, setPrices] = useState({ small: 0, medium: 0, large: 0 });
 
   useEffect(() => {
@@ -22,15 +22,14 @@ const EditFlower = () => {
 
   const fetchFlower = async () => {
     try {
-      const { data } = await getFlowerById(id);
+      const flower = await getFlowerById(id); // ✅ fixed here
       setFormData({
-        name: data.name,
-        flowerCount: data.flowerCount,
-        image: data.image,
-        buyPrice: data.buyPrice,
-        description: data.description,
+        name: flower.name || "",
+        flowerCount: flower.flowerCount || "",
+        image: flower.image || "",
+        buyPrice: flower.buyPrice || "",
       });
-      updatePrices(data.buyPrice);
+      updatePrices(flower.buyPrice);
     } catch (error) {
       console.error("Failed to fetch flower:", error);
     }
@@ -58,15 +57,26 @@ const EditFlower = () => {
     }
   };
 
+  const handleImageChange = (e) => {
+    setImageFile(e.target.files[0]);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      await updateFlower(id, {
-        ...formData,
-        flowerCount: parseInt(formData.flowerCount),
-        buyPrice: parseFloat(formData.buyPrice),
-      });
+      const data = new FormData();
+      data.append("name", formData.name);
+      data.append("flowerCount", parseInt(formData.flowerCount));
+      data.append("buyPrice", parseFloat(formData.buyPrice));
+
+      if (imageFile) {
+        data.append("image", imageFile); // upload new image
+      } else {
+        data.append("image", formData.image); // keep old one
+      }
+
+      await updateFlower(id, data);
       navigate("/");
     } catch (error) {
       alert("Failed to update flower. Please check your inputs.");
@@ -116,21 +126,25 @@ const EditFlower = () => {
             />
           </div>
 
-          {/* Image URL */}
+          {/* Image Upload */}
           <div>
             <label className="block font-semibold text-pink-400 mb-1" htmlFor="image">
-              Image URL
+              Flower Image
             </label>
             <input
               id="image"
-              type="text"
-              name="image"
-              value={formData.image}
-              onChange={handleChange}
-              placeholder="Enter image URL"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
               className="w-full border border-pink-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 transition"
-              required
             />
+            {formData.image && !imageFile && (
+              <img
+                src={'http://localhost:5000/uploads/${formData.image}'}
+                alt={formData.name}
+                className="mt-2 h-20 w-20 rounded object-cover border border-pink-300"
+              />
+            )}
           </div>
 
           {/* Buy Price */}
@@ -151,8 +165,6 @@ const EditFlower = () => {
               min={0}
             />
           </div>
-
-          
 
           {/* Selling Price Preview */}
           <div className="bg-pink-50 p-4 rounded-lg text-pink-600">
@@ -186,4 +198,4 @@ const EditFlower = () => {
   );
 };
 
-export default EditFlower;
+export default EditFlower;

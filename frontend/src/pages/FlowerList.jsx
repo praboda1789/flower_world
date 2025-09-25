@@ -93,9 +93,9 @@ const FlowerList = () => {
                     ${parseFloat(flower.buyPrice).toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-pink-700">
-                    <div>Small (5 flowers): ${getSellingPrice(flower.buyPrice, 5)}</div>
-                    <div>Medium (15 flowers): ${getSellingPrice(flower.buyPrice, 15)}</div>
-                    <div>Large (25 flowers): ${getSellingPrice(flower.buyPrice, 25)}</div>
+                    <div>Small (5 flowers): LKR{getSellingPrice(flower.buyPrice, 5)}</div>
+                    <div>Medium (15 flowers): LKR{getSellingPrice(flower.buyPrice, 15)}</div>
+                    <div>Large (25 flowers): LKR{getSellingPrice(flower.buyPrice, 25)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Link
