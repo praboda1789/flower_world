@@ -62,7 +62,7 @@ export default function MyDeliveriesPage() {
               {deliveries.length} {deliveries.length === 1 ? 'Delivery' : 'Deliveries'}
             </div>
             <button
-              onClick={() => navigate('/orders')}
+              onClick={() => navigate('/orders/:id')}
               className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition duration-300 shadow-md flex items-center"
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

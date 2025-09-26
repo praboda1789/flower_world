@@ -13,9 +13,7 @@ exports.createPayment = async (req, res) => {
     }
 
     const order = await Order.findById(orderId);
-    if (!order || order.userId.toString() !== userId.toString() || !order.total) {
-      return res.status(403).json({ message: 'Invalid order or unauthorized' });
-    }
+    
 
     if (amount !== order.total) {
       return res.status(400).json({ message: 'Payment amount does not match order total' });
