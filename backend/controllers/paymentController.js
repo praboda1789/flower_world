@@ -13,7 +13,9 @@ exports.createPayment = async (req, res) => {
     }
 
     const order = await Order.findById(orderId);
-    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
     if (amount !== order.total) {
       return res.status(400).json({ message: 'Payment amount does not match order total' });
@@ -62,7 +64,7 @@ exports.getUserPayments = async (req, res) => {
     const userId = req.user._id;
     const payments = await Payment.find({ userId })
       .populate('orderId', 'total status')
-      .select('-cardDetails') // Exclude sensitive cardDetails
+      .select('orderId userId amount method status transactionId cardDetails') // Include cardDetails
       .lean();
     res.status(200).json({ payments });
   } catch (err) {
@@ -75,9 +77,9 @@ exports.getSavedCard = async (req, res) => {
   try {
     const userId = req.user._id;
     const payment = await Payment.findOne({ userId, 'cardDetails.saved': true })
-      .select('cardDetails')
+      .select('cardDetails _id')
       .lean();
-    res.status(200).json({ card: payment?.cardDetails || null });
+    res.status(200).json({ card: payment ? { ...payment.cardDetails, paymentId: payment._id } : null });
   } catch (err) {
     console.error('Get saved card error:', err);
     res.status(500).json({ message: 'Server error' });

@@ -21,10 +21,10 @@ export default function PaymentsPage() {
       try {
         const { payments } = await getUserPayments();
         // Filter payments to only those with saved card details
-        const saved = payments.filter(payment => payment.cardDetails?.saved);
+        const saved = payments.filter(payment => payment.cardDetails?.saved === true);
         setSavedCards(saved);
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load saved cards.');
+        setError(err.response?.data?.message || 'Failed to load saved cards. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -35,7 +35,7 @@ export default function PaymentsPage() {
   const handleUpdateCard = async (paymentId) => {
     try {
       if (!cardDetails.cardNumber || cardDetails.cardNumber.length < 4) {
-        setError('Invalid card number.');
+        setError('Please enter a valid card number.');
         return;
       }
       await updateSavedCard(paymentId, {
@@ -64,7 +64,7 @@ export default function PaymentsPage() {
       setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update card.');
+      setError(err.response?.data?.message || 'Failed to update card. Please try again.');
     }
   };
 
@@ -75,7 +75,7 @@ export default function PaymentsPage() {
       setSavedCards(savedCards.filter(card => card._id !== paymentId));
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete card.');
+      setError(err.response?.data?.message || 'Failed to delete card. Please try again.');
     }
   };
 
@@ -83,9 +83,9 @@ export default function PaymentsPage() {
   const startUpdate = (card) => {
     setUpdateCard(card._id);
     setCardDetails({
-      cardNumber: `**** **** **** ${card.cardDetails.lastFourDigits}`,
-      cardHolder: card.cardDetails.cardHolder,
-      expiry: card.cardDetails.expiry,
+      cardNumber: `**** **** **** ${card.cardDetails?.lastFourDigits || ''}`,
+      cardHolder: card.cardDetails?.cardHolder || '',
+      expiry: card.cardDetails?.expiry || '',
       cvv: ''
     });
   };
@@ -139,9 +139,9 @@ export default function PaymentsPage() {
               <div key={card._id} className="bg-white p-6 rounded-2xl shadow-xl border border-pink-100">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-semibold text-gray-800">Card: **** **** **** {card.cardDetails.lastFourDigits}</p>
-                    <p className="text-sm text-gray-600">Card Holder: {card.cardDetails.cardHolder}</p>
-                    <p className="text-sm text-gray-600">Expiry: {card.cardDetails.expiry}</p>
+                    <p className="font-semibold text-gray-800">Card: **** **** **** {card.cardDetails?.lastFourDigits || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">Card Holder: {card.cardDetails?.cardHolder || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">Expiry: {card.cardDetails?.expiry || 'N/A'}</p>
                   </div>
                   <div className="flex gap-2">
                     <button

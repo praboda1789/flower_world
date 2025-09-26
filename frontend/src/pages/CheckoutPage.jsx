@@ -107,11 +107,19 @@ export default function CheckoutPage() {
 
   const handleUpdateCard = async () => {
     try {
-      const payment = await Payment.findOne({ userId, 'cardDetails.saved': true });
-      if (!payment) {
-        return setError('No saved card found');
+      const savedCardData = await getSavedCard();
+      if (!savedCardData.card) {
+        setError('No saved card found');
+        return;
       }
-      await updateSavedCard(payment._id, {
+
+      const paymentId = savedCardData.card.paymentId; // Assuming backend returns paymentId with saved card
+      if (!paymentId) {
+        setError('Saved card data is incomplete');
+        return;
+      }
+
+      await updateSavedCard(paymentId, {
         cardDetails: {
           lastFourDigits: cardDetails.cardNumber.slice(-4),
           expiry: cardDetails.expiry,
@@ -119,6 +127,7 @@ export default function CheckoutPage() {
           saved: true
         }
       });
+
       setSavedCard({
         lastFourDigits: cardDetails.cardNumber.slice(-4),
         expiry: cardDetails.expiry,
@@ -310,7 +319,6 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 )}
-
 
                 {/* Personal Information */}
                 <div className="mb-8">
