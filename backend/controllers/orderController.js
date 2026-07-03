@@ -167,14 +167,31 @@ exports.getAllOrdersAdmin = async (req, res) => {
 
 exports.deleteOrderAdmin = async (req, res) => {
   try {
-    if (!req.user.isAdmin) return res.status(403).json({ message: 'Forbidden' });
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    await order.remove();
+    await Order.deleteOne({ _id: req.params.id });
+    // Or: await Order.findByIdAndDelete(req.params.id);
+
     res.status(200).json({ message: 'Order deleted' });
   } catch (err) {
     console.error('Delete order error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.updateOrderAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    const allowed = ['status', 'fromName', 'toName', 'message', 'phone', 'addressLine', 'city', 'district', 'postalCode', 'country', 'deliveryDate', 'paymentMethod'];
+    allowed.forEach(k => { if (req.body[k] !== undefined) order[k] = req.body[k]; });
+
+    await order.save();
+    res.status(200).json({ order });
+  } catch (err) {
+    console.error('Admin update order error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

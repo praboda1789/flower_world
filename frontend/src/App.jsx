@@ -1,4 +1,3 @@
-import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import FlowerList from "./pages/FlowerList.jsx";
 import AddFlower from "./pages/AddFlower.jsx";
@@ -26,8 +25,8 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/flower" element={<FlowerList />} />
         <Route path="/cart" element={<CartPage />} />
-        {/* <Route path="/admin/dashboard" element={<AdminDashboard />} /> */}
-        {/* <Route path="/admin/customers" element={<AdminCustomerManagement />} /> */}
+        
+       
         <Route path="/add" element={<AddFlower />} />
         <Route path="/edit/:id" element={<EditFlower />} />
         <Route path="/register" element={<Register />} />
@@ -37,14 +36,16 @@ function App() {
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders/:id" element={<MyOrdersPage />} />
         <Route path="/payments" element={<PaymentsPage />} />
+
         {/* Admin pages with AdminPanel layout */}
         <Route path="/admin" element={<AdminPanel />}>
-          <Route path="dashboard" element={Dashboard}/>
+        <Route path="dashboard" element={<Dashboard />} />
           <Route path="add-flower" element={<AddFlower />} />
             <Route path="flowers" element={<FlowerList />} />
             <Route path="customers" element={<AdminCustomerManagement />} />
             <Route path="deliveries" element={<AdminDeliveryManagement />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            
 
         </Route>
       </Routes>

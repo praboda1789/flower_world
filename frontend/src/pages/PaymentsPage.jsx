@@ -6,7 +6,7 @@ export default function PaymentsPage() {
   const [savedCards, setSavedCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [updateCard, setUpdateCard] = useState(null); // For updating a specific card
+  const [updateCard, setUpdateCard] = useState(null);
   const [cardDetails, setCardDetails] = useState({
     cardNumber: '',
     cardHolder: '',
@@ -15,46 +15,84 @@ export default function PaymentsPage() {
   });
   const navigate = useNavigate();
 
-  // Fetch saved cards on mount
   useEffect(() => {
     (async () => {
       try {
         const { payments } = await getUserPayments();
-        // Filter payments to only those with saved card details
-        const saved = payments.filter(payment => payment.cardDetails?.saved === true);
+        const saved = payments.filter(payment => 
+          payment.cardDetails?.saved === true && 
+          payment.cardDetails?.lastFourDigits && 
+          payment.cardDetails?.cardHolder && 
+          payment.cardDetails?.expiry
+        );
         setSavedCards(saved);
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load saved cards. Please try again.');
+        setError(err.message || 'Failed to load saved cards. Please try again.');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // Handle update card form submission
+  const validateCardDetails = (details) => {
+    const cleanedCardNumber = details.cardNumber.replace(/\s/g, '');
+    if (!cleanedCardNumber || cleanedCardNumber.length < 4) {
+      return 'Card number must be at least 4 digits';
+    }
+    if (!details.cardHolder || details.cardHolder.trim().length < 1) {
+      return 'Card holder name is required';
+    }
+    if (!details.expiry || !/^\d{2}\/\d{2}$/.test(details.expiry)) {
+      return 'Expiry must be in MM/YY format';
+    }
+    const [month, year] = details.expiry.split('/');
+    const expiryDate = new Date(`20${year}`, month - 1);
+    const today = new Date();
+    if (expiryDate <= today) {
+      return 'Expiry date must be in the future';
+    }
+    if (!details.cvv || !/^\d{3,4}$/.test(details.cvv)) {
+      return 'CVV must be 3 or 4 digits';
+    }
+    return null;
+  };
+
+  const formatCardNumber = (value) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 16);
+    const parts = [];
+    for (let i = 0; i < cleaned.length; i += 4) {
+      parts.push(cleaned.slice(i, i + 4));
+    }
+    return parts.join(' ');
+  };
+
   const handleUpdateCard = async (paymentId) => {
     try {
-      if (!cardDetails.cardNumber || cardDetails.cardNumber.length < 4) {
-        setError('Please enter a valid card number.');
+      const validationError = validateCardDetails(cardDetails);
+      if (validationError) {
+        setError(validationError);
         return;
       }
-      await updateSavedCard(paymentId, {
+
+      const payload = {
         cardDetails: {
-          lastFourDigits: cardDetails.cardNumber.slice(-4),
+          lastFourDigits: cardDetails.cardNumber.replace(/\s/g, '').slice(-4),
           expiry: cardDetails.expiry,
-          cardHolder: cardDetails.cardHolder,
+          cardHolder: cardDetails.cardHolder.trim(),
           saved: true
         }
-      });
-      // Update local state
+      };
+      console.log('Updating card with payload:', payload);
+
+      const response = await updateSavedCard(paymentId, payload);
       setSavedCards(savedCards.map(card =>
         card._id === paymentId
           ? {
               ...card,
               cardDetails: {
-                lastFourDigits: cardDetails.cardNumber.slice(-4),
-                expiry: cardDetails.expiry,
-                cardHolder: cardDetails.cardHolder,
+                lastFourDigits: response.payment.cardDetails.lastFourDigits,
+                expiry: response.payment.cardDetails.expiry,
+                cardHolder: response.payment.cardDetails.cardHolder,
                 saved: true
               }
             }
@@ -64,26 +102,25 @@ export default function PaymentsPage() {
       setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
       setError(null);
     } catch (err) {
+      console.error('Update card error:', err.response?.data || err);
       setError(err.response?.data?.message || 'Failed to update card. Please try again.');
     }
   };
 
-  // Handle delete card
   const handleDeleteCard = async (paymentId) => {
     try {
-      await deleteSavedCard();
+      await deleteSavedCard(paymentId);
       setSavedCards(savedCards.filter(card => card._id !== paymentId));
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete card. Please try again.');
+      setError(err.message || 'Failed to delete card. Please try again.');
     }
   };
 
-  // Populate update form with existing card details
   const startUpdate = (card) => {
     setUpdateCard(card._id);
     setCardDetails({
-      cardNumber: `**** **** **** ${card.cardDetails?.lastFourDigits || ''}`,
+      cardNumber: card.cardDetails?.lastFourDigits ? `**** **** **** ${card.cardDetails.lastFourDigits}` : '',
       cardHolder: card.cardDetails?.cardHolder || '',
       expiry: card.cardDetails?.expiry || '',
       cvv: ''
@@ -163,7 +200,6 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        {/* Update Card Modal */}
         {updateCard && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
             <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl">
@@ -186,7 +222,7 @@ export default function PaymentsPage() {
                     className="w-full px-4 py-2 border border-pink-200 rounded-lg focus:ring-pink-500 focus:border-pink-500"
                     placeholder="1234 5678 9012 3456"
                     value={cardDetails.cardNumber}
-                    onChange={e => setCardDetails({ ...cardDetails, cardNumber: e.target.value })}
+                    onChange={e => setCardDetails({ ...cardDetails, cardNumber: formatCardNumber(e.target.value) })}
                   />
                 </div>
                 <div>

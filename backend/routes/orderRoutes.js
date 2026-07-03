@@ -2,18 +2,23 @@ const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/orderController');
 const auth = require('../middleware/authMiddleware');
+const admin = require('../middleware/adminMiddleware');
 
 router.use(auth); // all routes protected
 
-// User (Customer) routes
-router.post('/', orderController.createOrder);            // create order (checkout)
-router.get('/me', orderController.getUserOrders);         // get current user's orders
-router.get('/:id', orderController.getOrderById);        // get order detail (user or admin)
-router.put('/:id', orderController.updateOrder);         // update order (user)
-router.post('/:id/cancel', orderController.cancelOrder); // cancel
+// Customer routes
+router.post('/', orderController.createOrder);
+router.get('/me', orderController.getUserOrders);
+router.get('/:id', orderController.getOrderById);
+router.put('/:id', orderController.updateOrder);
+router.post('/:id/cancel', orderController.cancelOrder);
+
+
 
 // Admin routes
-router.get('/', orderController.getAllOrdersAdmin);      // admin only - read-only list
-router.delete('/:id', orderController.deleteOrderAdmin); // admin only - delete order
+router.get('/admin/orders', admin, orderController.getAllOrdersAdmin);
+router.delete('/admin/orders/:id', admin, orderController.deleteOrderAdmin);
+router.put('/admin/orders/:id', admin, orderController.updateOrderAdmin);
+
 
 module.exports = router;

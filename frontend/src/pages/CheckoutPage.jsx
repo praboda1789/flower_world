@@ -30,7 +30,8 @@ export default function CheckoutPage() {
     expiry: '',
     cvv: ''
   });
-  const [savedCard, setSavedCard] = useState(null);
+  const [savedCards, setSavedCards] = useState([]);
+  const [selectedCardId, setSelectedCardId] = useState(null);
   const [showUpdateCard, setShowUpdateCard] = useState(false);
   const navigate = useNavigate();
 
@@ -40,9 +41,9 @@ export default function CheckoutPage() {
         const data = await getCart();
         setCart(data.items || []);
         const savedCardData = await getSavedCard();
-        setSavedCard(savedCardData.card);
+        setSavedCards(savedCardData.cards || []);
       } catch (e) {
-        setError('Unable to load cart or saved card.');
+        setError(e.message || 'Unable to load cart or saved cards.');
       } finally {
         setLoading(false);
       }
@@ -74,52 +75,51 @@ export default function CheckoutPage() {
       if (warning) {
         alert(warning);
         setShowPayment(false);
-        navigate('/orders/:id');
+        navigate(`/orders/${order._id}`);
         return;
       }
 
       console.log('Order ID:', order._id);
+      const selectedCard = savedCards.find(card => card.paymentId === selectedCardId);
       const payment = await createPayment({
         orderId: order._id,
         amount: total,
         method: 'card',
-        cardDetails: saveCard ? {
+        cardDetails: saveCard && !selectedCard ? {
           lastFourDigits: cardDetails.cardNumber.slice(-4),
           expiry: cardDetails.expiry,
           cardHolder: cardDetails.cardHolder,
+          saved: true
+        } : selectedCard ? {
+          lastFourDigits: selectedCard.lastFourDigits,
+          expiry: selectedCard.expiry,
+          cardHolder: selectedCard.cardHolder,
           saved: true
         } : {}
       });
 
       setShowPayment(false);
       setPaymentCompleted(true);
-      setTimeout(() => navigate('/orders/:id'), 2000);
+      setTimeout(() => navigate(`/orders/${order._id}`), 2000);
     } catch (err) {
       console.error('Checkout error:', {
         message: err.message,
-        status: err.response?.status,
-        data: err.response?.data
+        status: err.status,
+        data: err
       });
-      setError(err.response?.data?.message || 'Failed to place order or save payment.');
+      setError(err.message || 'Failed to place order or save payment.');
       setShowPayment(false);
     }
   };
 
-  const handleUpdateCard = async () => {
+  const handleUpdateCard = async (paymentId) => {
     try {
-      const savedCardData = await getSavedCard();
-      if (!savedCardData.card) {
-        setError('No saved card found');
+      if (!cardDetails.cardNumber || cardDetails.cardNumber.length < 4) {
+        setError('Please enter a valid card number.');
         return;
       }
 
-      const paymentId = savedCardData.card.paymentId; // Assuming backend returns paymentId with saved card
-      if (!paymentId) {
-        setError('Saved card data is incomplete');
-        return;
-      }
-
-      await updateSavedCard(paymentId, {
+      const response = await updateSavedCard(paymentId, {
         cardDetails: {
           lastFourDigits: cardDetails.cardNumber.slice(-4),
           expiry: cardDetails.expiry,
@@ -128,37 +128,60 @@ export default function CheckoutPage() {
         }
       });
 
-      setSavedCard({
-        lastFourDigits: cardDetails.cardNumber.slice(-4),
-        expiry: cardDetails.expiry,
-        cardHolder: cardDetails.cardHolder,
-        saved: true
-      });
+      setSavedCards(savedCards.map(card =>
+        card.paymentId === paymentId
+          ? {
+              ...card,
+              lastFourDigits: response.payment.cardDetails.lastFourDigits,
+              expiry: response.payment.cardDetails.expiry,
+              cardHolder: response.payment.cardDetails.cardHolder,
+              saved: true
+            }
+          : card
+      ));
+      if (selectedCardId === paymentId) {
+        setCardDetails({
+          cardNumber: `**** **** **** ${response.payment.cardDetails.lastFourDigits}`,
+          cardHolder: response.payment.cardDetails.cardHolder,
+          expiry: response.payment.cardDetails.expiry,
+          cvv: ''
+        });
+      }
       setShowUpdateCard(false);
       setError(null);
     } catch (err) {
       console.error('Update card error:', err);
-      setError(err.response?.data?.message || 'Failed to update card details.');
+      setError(err.message || 'Failed to update card details.');
     }
   };
 
-  const handleDeleteCard = async () => {
+  const handleDeleteCard = async (paymentId) => {
     try {
-      await deleteSavedCard();
-      setSavedCard(null);
+      await deleteSavedCard(paymentId);
+      setSavedCards(savedCards.filter(card => card.paymentId !== paymentId));
+      if (selectedCardId === paymentId) {
+        setSelectedCardId(null);
+        setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
+        setSaveCard(false);
+      }
       setError(null);
     } catch (err) {
       console.error('Delete card error:', err);
-      setError(err.response?.data?.message || 'Failed to delete saved card.');
+      setError(err.message || 'Failed to delete saved card.');
     }
   };
 
-  const useSavedCard = () => {
-    if (savedCard) {
+  const handleSelectCard = (card) => {
+    if (selectedCardId === card.paymentId) {
+      setSelectedCardId(null);
+      setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
+      setSaveCard(false);
+    } else {
+      setSelectedCardId(card.paymentId);
       setCardDetails({
-        cardNumber: `**** **** **** ${savedCard.lastFourDigits}`,
-        cardHolder: savedCard.cardHolder,
-        expiry: savedCard.expiry,
+        cardNumber: `**** **** **** ${card.lastFourDigits}`,
+        cardHolder: card.cardHolder,
+        expiry: card.expiry,
         cvv: ''
       });
       setSaveCard(true);
@@ -247,8 +270,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Saved Card Section */}
-                {savedCard && (
+                {savedCards.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                       <svg
@@ -264,63 +286,58 @@ export default function CheckoutPage() {
                           d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
                         ></path>
                       </svg>
-                      Saved Card
+                      Saved Cards
                     </h3>
-
-                    <div className="p-4 bg-pink-50 rounded-xl border border-pink-200">
-                      <p className="text-sm text-gray-600">
-                        Card: **** **** **** {savedCard.lastFourDigits}
-                      </p>
-                      <p className="text-sm text-gray-600">Card Holder: {savedCard.cardHolder}</p>
-                      <p className="text-sm text-gray-600">Expiry: {savedCard.expiry}</p>
-
-                      {/* Checkbox */}
-                      <div className="mt-4">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={saveCard}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                useSavedCard();
-                              } else {
-                                setSaveCard(false);
+                    <div className="space-y-4">
+                      {savedCards.map(card => (
+                        <div key={card.paymentId} className="p-4 bg-pink-50 rounded-xl border border-pink-200">
+                          <p className="text-sm text-gray-600">
+                            Card: **** **** **** {card.lastFourDigits}
+                          </p>
+                          <p className="text-sm text-gray-600">Card Holder: {card.cardHolder}</p>
+                          <p className="text-sm text-gray-600">Expiry: {card.expiry}</p>
+                          <div className="mt-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedCardId === card.paymentId}
+                                onChange={() => handleSelectCard(card)}
+                                className="w-5 h-5 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                              />
+                              <span className="text-gray-700">Use This Saved Card</span>
+                            </label>
+                          </div>
+                          <div className="flex gap-4 mt-4">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowUpdateCard(true);
                                 setCardDetails({
-                                  cardNumber: "",
-                                  cardHolder: "",
-                                  expiry: "",
-                                  cvv: "",
+                                  cardNumber: `**** **** **** ${card.lastFourDigits}`,
+                                  cardHolder: card.cardHolder,
+                                  expiry: card.expiry,
+                                  cvv: ''
                                 });
-                              }
-                            }}
-                            className="w-5 h-5 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
-                          />
-                          <span className="text-gray-700">Use This Saved Card</span>
-                        </label>
-                      </div>
-
-                      {/* Buttons */}
-                      <div className="flex gap-4 mt-4">
-                        <button
-                          type="button"
-                          onClick={() => setShowUpdateCard(true)}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                        >
-                          Update Card
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeleteCard}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                        >
-                          Delete Card
-                        </button>
-                      </div>
+                                setSelectedCardId(card.paymentId);
+                              }}
+                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                            >
+                              Update Card
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCard(card.paymentId)}
+                              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                            >
+                              Delete Card
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Personal Information */}
                 <div className="mb-8">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                     <svg className="w-5 h-5 text-pink-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,7 +391,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Delivery Address */}
                 <div className="mb-8">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                     <svg className="w-5 h-5 text-pink-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -439,7 +455,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Love Message */}
                 <div className="mb-8">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                     <svg className="w-5 h-5 text-pink-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -459,7 +474,6 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Payment Method */}
                 <div className="mb-8">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                     <svg className="w-5 h-5 text-pink-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -505,7 +519,6 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Payment Modal */}
       {showPayment && !paymentCompleted && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
           <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl">
@@ -537,6 +550,7 @@ export default function CheckoutPage() {
                   placeholder="1234 5678 9012 3456"
                   value={cardDetails.cardNumber}
                   onChange={e => setCardDetails({ ...cardDetails, cardNumber: e.target.value })}
+                  disabled={selectedCardId}
                 />
               </div>
               <div>
@@ -546,6 +560,7 @@ export default function CheckoutPage() {
                   placeholder="John Doe"
                   value={cardDetails.cardHolder}
                   onChange={e => setCardDetails({ ...cardDetails, cardHolder: e.target.value })}
+                  disabled={selectedCardId}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -556,6 +571,7 @@ export default function CheckoutPage() {
                     placeholder="MM/YY"
                     value={cardDetails.expiry}
                     onChange={e => setCardDetails({ ...cardDetails, expiry: e.target.value })}
+                    disabled={selectedCardId}
                   />
                 </div>
                 <div>
@@ -573,7 +589,13 @@ export default function CheckoutPage() {
                   <input
                     type="checkbox"
                     checked={saveCard}
-                    onChange={e => setSaveCard(e.target.checked)}
+                    onChange={e => {
+                      setSaveCard(e.target.checked);
+                      if (!e.target.checked) {
+                        setSelectedCardId(null);
+                        setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
+                      }
+                    }}
                     className="mr-2"
                   />
                   <span className="text-sm text-gray-700">Save card details for future use</span>
@@ -589,7 +611,12 @@ export default function CheckoutPage() {
                 Confirm Payment
               </button>
               <button
-                onClick={() => setShowPayment(false)}
+                onClick={() => {
+                  setShowPayment(false);
+                  setSelectedCardId(null);
+                  setCardDetails({ cardNumber: '', cardHolder: '', expiry: '', cvv: '' });
+                  setSaveCard(false);
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200"
               >
                 Cancel
@@ -599,7 +626,6 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* Update Card Modal */}
       {showUpdateCard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
           <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl">
@@ -658,7 +684,7 @@ export default function CheckoutPage() {
 
             <div className="flex gap-2 mt-6">
               <button
-                onClick={handleUpdateCard}
+                onClick={() => handleUpdateCard(selectedCardId)}
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
               >
                 Save Changes
@@ -674,7 +700,6 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* Payment Completed Modal */}
       {paymentCompleted && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
           <div className="bg-white p-8 rounded-xl shadow-xl text-center max-w-md w-full">

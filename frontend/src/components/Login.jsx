@@ -23,7 +23,7 @@ const Login = () => {
 
       // Redirect based on user type
       if (data.user.userType === "admin") {
-        navigate("/admin");
+        navigate("/admin/dashboard");
       } else if (data.user.userType === "customer") {
         navigate("/");
       }
